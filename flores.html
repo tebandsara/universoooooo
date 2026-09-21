@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Multiverso Dorado - Recorrido Cinemático</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        html, body {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            font-family: 'Quicksand', sans-serif;
+            background-color: #010103;
+            color: #f3f4f6;
+            touch-action: none;
+        }
+
+        .romantic-title { font-family: 'Great Vibes', cursive; }
+
+        #webgl-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+        #vignette {
+            position: fixed; inset: 0; z-index: 2; pointer-events: none;
+            background: radial-gradient(circle at center, transparent 20%, rgba(1, 1, 3, 0.9) 100%);
+        }
+
+        .ui-layer { position: relative; z-index: 10; pointer-events: none; }
+        .interactive-element { pointer-events: auto; }
+
+        .glass-panel {
+            background: rgba(10, 10, 15, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 215, 0, 0.25);
+            box-shadow: 0 0 40px rgba(255, 170, 0, 0.15), inset 0 0 20px rgba(255, 215, 0, 0.05);
+        }
+
+        .message-card { transition: all 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3); transform: scale(0.85) translateY(20px); opacity: 0; }
+        .message-card.active { transform: scale(1) translateY(0); opacity: 1; }
+
+        .icon { width: 1.2em; height: 1.2em; display: inline-block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        #loadingScreen {
+            position: fixed; inset: 0; z-index: 50; background: #010103;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .petal-spinner {
+            width: 50px; height: 50px; border-radius: 50%;
+            border: 3px solid rgba(255, 215, 0, 0.1); border-top-color: #ffaa00;
+            animation: spin 1s cubic-bezier(0.6, 0.2, 0.4, 0.8) infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Oculta la UI temporalmente durante la animación de entrada */
+        .ui-content { transition: opacity 2s ease; opacity: 0; }
+        .ui-content.visible { opacity: 1; }
+    </style>
+</head>
+<body class="selection:bg-yellow-500 selection:text-black">
+
+    <div id="loadingScreen">
+        <div class="petal-spinner mb-6"></div>
+        <p class="romantic-title text-yellow-500 text-4xl drop-shadow-[0_0_15px_rgba(255,170,0,0.8)]">Preparando viaje interestelar...</p>
+    </div>
+
+    <div id="webgl-container"></div>
+    <div id="vignette"></div>
+
+    <div class="ui-layer absolute inset-0 flex flex-col justify-between p-6 h-full">
+        <header id="mainHeader" class="ui-content text-center pt-4 interactive-element">
+            <p class="text-yellow-400 font-semibold tracking-[0.3em] uppercase text-xs sm:text-sm drop-shadow-md">PARA MIBB PRECIOSA</p>
+            <h1 class="romantic-title text-5xl sm:text-7xl text-yellow-300 drop-shadow-[0_0_30px_rgba(255,215,0,0.8)] mt-2">Este es el universo de nuestro amor</h1>
+            <p class="text-gray-300 text-xs sm:text-sm mt-3 font-light max-w-lg mx-auto opacity-80">toca un girasol para leer un mensaje.</p>
+        </header>
+
+        <div class="flex flex-col items-center justify-end pb-8 gap-6 h-full">
+            <div id="messageCard" class="message-card glass-panel max-w-sm w-full mx-4 p-8 rounded-[2rem] text-center relative interactive-element hidden">
+                <button id="closeCard" class="absolute top-5 right-5 text-gray-400 hover:text-yellow-400 transition-colors w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+                    <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400/20 to-orange-500/20 text-yellow-400 mb-4 border border-yellow-400/30 shadow-[0_0_20px_rgba(255,170,0,0.4)]">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11a8 8 0 0 1 16 0c0 6.5-8 11-8 11z"/><path d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+                </div>
+                <h3 id="cardTitle" class="romantic-title text-3xl text-yellow-300 mb-3 drop-shadow-md">Mensaje del Cosmos</h3>
+                <p id="cardText" class="text-gray-200 text-sm sm:text-base leading-relaxed font-light mb-5">Cargando inspiración cósmica...</p>
+                <div class="flex justify-center gap-2">
+                    <span class="text-[9px] text-yellow-400/90 uppercase tracking-[0.2em] bg-yellow-500/10 px-4 py-1.5 rounded-full border border-yellow-500/20">Círculos de Amor</span>
+                </div>
+            </div>
+
+            <div id="controlsUI" class="ui-content flex items-center gap-4 interactive-element">
+                <button id="resetCamera" class="glass-panel text-yellow-300 hover:text-white px-6 py-3 rounded-full text-xs sm:text-sm font-medium flex items-center gap-2 transition-transform hover:scale-105 active:scale-95">
+                    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                    Vista General
+                </button>
+                <button id="autoRotateToggle" class="glass-panel text-yellow-300 hover:text-white px-6 py-3 rounded-full text-xs sm:text-sm font-medium flex items-center gap-2 transition-transform hover:scale-105 active:scale-95">
+                    <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <span id="rotateStateText">Pausar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Librerías de Three.js y GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script>
+        const loveMessages = [
+            "Eres el centro gravitacional que atrae cada latido de mi corazón.",
+            "Ni todas las estrellas juntas brillan con la intensidad de tu mirada.",
+            "En cada anillo de esta galaxia he escondido un te amo para ti.",
+            "Como los planetas al sol, mi corazón siempre orbita alrededor del tuyo.",
+            "Eres el hermoso desorden que le dio sentido y luz a mi universo.",
+            "Este cosmos está lleno, pero solo tú eres mi mundo entero.",
+            "Un amor tan brillante que la luz de mil soles palidece a su lado.",
+            "Haces que cada día florezca de color dorado y felicidad.",
+            "Eres mi estrella fugaz favorita atrapada en un mar de girasoles.",
+            "El tiempo y el espacio se detienen cuando estoy contigo."
+        ];
+
+        let scene, camera, renderer, controls, composer;
+        let galaxyGroup, deepSpaceElements = [];
+        let interactiveNodes = [];
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let isAutoRotating = false; // Se activará DESPUÉS de la animación
+        let clock = new THREE.Clock();
+        let pointerDownPos = null;
+        let pointerDownTime = 0;
+
+        function createParticleTexture(isSoft = false) {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const center = size / 2;
+            
+            const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+            if (isSoft) { 
+                gradient.addColorStop(0, 'rgba(255, 220, 150, 0.8)');
+                gradient.addColorStop(0.3, 'rgba(255, 150, 0, 0.3)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            } else { 
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.1, 'rgba(255, 230, 150, 0.9)');
+                gradient.addColorStop(0.4, 'rgba(255, 150, 0, 0.1)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+        const sharpTexture = createParticleTexture(false);
+        const softTexture = createParticleTexture(true);
+
+        function generateLayeredGalaxy(options) {
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(options.count * 3);
+            const colors = new Float32Array(options.count * 3);
+            const sizes = new Float32Array(options.count);
+
+            const colorInside = new THREE.Color(options.colorInside);
+            const colorOutside = new THREE.Color(options.colorOutside);
+
+            for(let i = 0; i < options.count; i++) {
+                const i3 = i * 3;
+                const ringIndex = Math.floor(Math.random() * options.rings) + 1; 
+                const baseRadius = (ringIndex / options.rings) * options.radius;
+                
+                const r = baseRadius + (Math.random() - 0.5) * options.scatter; 
+                const angle = Math.random() * Math.PI * 2; 
+                const y = (Math.random() - 0.5) * (options.scatter * 0.5); 
+
+                positions[i3] = Math.cos(angle) * r;
+                positions[i3+1] = y; 
+                positions[i3+2] = Math.sin(angle) * r;
+
+                const mixedColor = colorInside.clone();
+                mixedColor.lerp(colorOutside, r / options.radius);
+                if(Math.random() > 0.98) mixedColor.setHex(0xffffff);
+
+                colors[i3] = mixedColor.r; colors[i3+1] = mixedColor.g; colors[i3+2] = mixedColor.b;
+                sizes[i] = (Math.random() * options.baseSize) * (r < (options.radius*0.2) ? 2 : 1);
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const mat = new THREE.PointsMaterial({
+                size: 1.0, sizeAttenuation: true, map: sharpTexture, vertexColors: true,
+                transparent: true, opacity: options.opacity || 0.9, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            return new THREE.Points(geo, mat);
+        }
+
+        function createPetalGeometry() {
+            const shape = new THREE.Shape();
+            shape.moveTo(0, 0);
+            shape.bezierCurveTo(0.4, 0.2, 0.5, 0.9, 0.15, 1.3);
+            shape.bezierCurveTo(0.08, 1.45, -0.08, 1.45, -0.15, 1.3);
+            shape.bezierCurveTo(-0.5, 0.9, -0.4, 0.2, 0, 0);
+            return new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.02, curveSegments: 8 });
+        }
+
+        function createHeartGeometry() {
+            const shape = new THREE.Shape();
+            const x = 0, y = 0;
+            shape.moveTo(x + 5, y + 5);
+            shape.bezierCurveTo(x + 5, y + 5, x + 4, y, x, y);
+            shape.bezierCurveTo(x - 6, y, x - 6, y + 7, x - 6, y + 7);
+            shape.bezierCurveTo(x - 6, y + 11, x - 1, y + 15, x + 5, y + 19);
+            shape.bezierCurveTo(x + 11, y + 15, x + 16, y + 11, x + 16, y + 7);
+            shape.bezierCurveTo(x + 16, y + 7, x + 16, y, x + 10, y);
+            shape.bezierCurveTo(x + 6, y, x + 5, y + 5, x + 5, y + 5);
+            const geo = new THREE.ExtrudeGeometry(shape, { depth: 3, bevelEnabled: true, bevelSegments: 4, steps: 2, bevelSize: 1.5, bevelThickness: 1.5 });
+            geo.center(); geo.scale(0.15, 0.15, 0.15);
+            return geo;
+        }
+
+        function init() {
+            const container = document.getElementById('webgl-container');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x010103, 0.004); 
+
+            // Inicializamos la cámara casi dentro del núcleo para la animación del Big Bang
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 3000);
+            camera.position.set(0, 2, 5); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.6;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+            controls.maxDistance = 400; controls.minDistance = 10;
+            controls.maxPolarAngle = Math.PI / 1.6;
+            // Desactivamos los controles temporalmente durante el viaje estelar
+            controls.enabled = false; 
+
+            setupLights();
+            setupBloom();
+
+            fillTheVoid(); 
+            createLayeredSunflowerGalaxy(); 
+
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+            renderer.domElement.addEventListener('pointerup', onPointerUp);
+            document.getElementById('closeCard').addEventListener('click', closeMessageCard);
+            document.getElementById('resetCamera').addEventListener('click', resetCameraView);
+            document.getElementById('autoRotateToggle').addEventListener('click', toggleAutoRotate);
+
+            animate();
+            
+            // Iniciar la Animación Cinemática de Recorrido
+            setTimeout(playCinematicIntro, 500);
+        }
+
+        function playCinematicIntro() {
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    // Restaurar la interactividad al finalizar
+                    controls.enabled = true;
+                    isAutoRotating = true;
+                    // Mostrar la Interfaz
+                    document.querySelectorAll('.ui-content').forEach(el => el.classList.add('visible'));
+                }
+            });
+
+            // 1. Desaparece la pantalla de carga suavemente
+            tl.to('#loadingScreen', { 
+                opacity: 0, duration: 1.5, ease: "power2.inOut", 
+                onComplete: () => document.getElementById('loadingScreen').remove() 
+            });
+
+            // 2. FASE 1: "El Nacimiento" - Explosión saliendo del núcleo hacia arriba
+            tl.to(camera.position, {
+                x: 80, y: 130, z: 120,
+                duration: 0.5,
+                ease: "power2.out", // Empieza rápido, termina suave
+                onUpdate: () => controls.update()
+            }, "-=0.5");
+
+            // 3. FASE 2: "El Sobrevuelo" - Paneo cinemático barriendo la galaxia de lado a lado
+            tl.to(camera.position, {
+                x: -90, y: 40, z: 100,
+                duration: 5.5,
+                ease: "sine.inOut",
+                onUpdate: () => controls.update()
+            });
+
+            // 4. FASE 3: "El Aterrizaje" - Acomodo final en la posición interactiva perfecta
+            tl.to(camera.position, {
+                x: 0, y: 55, z: 90,
+                duration: 4,
+                ease: "power3.inOut",
+                onUpdate: () => controls.update()
+            });
+        }
+
+        function setupLights() {
+            scene.add(new THREE.AmbientLight(0x2a2000, 1.2));
+            const coreLight = new THREE.PointLight(0xffdf00, 10, 300, 1.5);
+            coreLight.position.set(0, 0, 0);
+            scene.add(coreLight);
+        }
+
+        function setupBloom() {
+            if (typeof THREE.EffectComposer === 'undefined') return;
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(new THREE.RenderPass(scene, camera));
+            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
+            composer.addPass(bloomPass);
+        }
+
+        function fillTheVoid() {
+            const spaceGroup = new THREE.Group();
+
+            const nebGeo = new THREE.BufferGeometry();
+            const nebPos = new Float32Array(400 * 3);
+            for(let i=0; i<400; i++) {
+                const r = 200 + Math.random() * 400; 
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                nebPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                nebPos[i*3+1] = r * Math.cos(phi);
+                nebPos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+            }
+            nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+            const nebMat = new THREE.PointsMaterial({
+                size: 200, map: softTexture, transparent: true, opacity: 0.05, 
+                depthWrite: false, blending: THREE.AdditiveBlending, color: 0xff8800
+            });
+            spaceGroup.add(new THREE.Points(nebGeo, nebMat));
+
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = new Float32Array(8000 * 3);
+            const starCol = new Float32Array(8000 * 3);
+            for(let i=0; i<8000; i++) {
+                const r = 100 + Math.random() * 600;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                starPos[i*3+1] = r * Math.cos(phi) * 0.8;
+                starPos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+                starCol[i*3] = 1.0; 
+                starCol[i*3+1] = 0.7 + Math.random()*0.3; 
+                starCol[i*3+2] = Math.random()*0.3;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+            const starMat = new THREE.PointsMaterial({
+                size: 2.5, map: sharpTexture, vertexColors: true, transparent: true, opacity: 0.8,
+                depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            const starMesh = new THREE.Points(starGeo, starMat);
+            spaceGroup.add(starMesh);
+            deepSpaceElements.push({ obj: starMesh, rotSpeed: -0.0002 });
+
+            const heartGeo = createHeartGeometry();
+            for(let i=0; i<8; i++) {
+                const mat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.2, metalness: 0.8, emissive: 0xaa6000, emissiveIntensity: 0.5 });
+                const heart = new THREE.Mesh(heartGeo, mat);
+                const angle = (i/8) * Math.PI*2;
+                const dist = 100 + Math.random()*150;
+                heart.position.set(Math.cos(angle)*dist, (Math.random()-0.5)*120, Math.sin(angle)*dist);
+                heart.scale.set(2.5, 2.5, 2.5);
+                heart.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                spaceGroup.add(heart);
+                deepSpaceElements.push({ obj: heart, rotSpeed: 0.005 + Math.random()*0.005 });
+            }
+
+            for(let i=0; i<6; i++) {
+                const backgroundGalaxy = generateLayeredGalaxy({
+                    count: 2000, radius: 25, rings: 3, scatter: 6, baseSize: 1.5,
+                    colorInside: 0xffffff, colorOutside: 0xff8800, opacity: 0.7
+                });
+                const angle = (i/6) * Math.PI*2 + 0.5;
+                const dist = 150 + Math.random()*100;
+                backgroundGalaxy.position.set(Math.cos(angle)*dist, (Math.random()-0.5)*200, Math.sin(angle)*dist);
+                backgroundGalaxy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                backgroundGalaxy.scale.set(1.5, 1.5, 1.5);
+                spaceGroup.add(backgroundGalaxy);
+                deepSpaceElements.push({ obj: backgroundGalaxy, rotSpeed: 0.002 });
+            }
+
+            scene.add(spaceGroup);
+        }
+
+        function createLayeredSunflowerGalaxy() {
+            galaxyGroup = new THREE.Group();
+            scene.add(galaxyGroup);
+
+            const mainDust = generateLayeredGalaxy({
+                count: 25000, 
+                radius: 75,
+                rings: 5,       
+                scatter: 12.0,  
+                baseSize: 1.2,
+                colorInside: 0xffffff, 
+                colorOutside: 0xff5500, 
+                opacity: 0.8
+            });
+            galaxyGroup.add(mainDust);
+
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0xffea00, transparent: true, opacity: 1, blending: THREE.AdditiveBlending });
+            galaxyGroup.add(new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), coreMat));
+            galaxyGroup.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 32), new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending })));
+
+            const petalGeo = createPetalGeometry();
+            const coreGeo = new THREE.SphereGeometry(0.4, 16, 16);
+            const petalMat = new THREE.MeshStandardMaterial({ color: 0xffdf00, roughness: 0.2, metalness: 0.1, side: THREE.DoubleSide, emissive: 0xcc6600, emissiveIntensity: 0.4 });
+            const centerMat = new THREE.MeshStandardMaterial({ color: 0x221100, roughness: 0.9, metalness: 0.1, emissive: 0x110500, emissiveIntensity: 0.2 });
+
+            const nodeCount = 75; 
+            const numRings = 5;
+            const maxRadius = 72;
+
+            for (let i = 0; i < nodeCount; i++) {
+                const ringIndex = i % numRings; 
+                const baseRadius = ((ringIndex + 1) / numRings) * (maxRadius - 10) + 10;
+                
+                const r = baseRadius + (Math.random() - 0.5) * 14; 
+                const angle = Math.random() * Math.PI * 2; 
+                
+                const flower = new THREE.Group();
+                flower.add(new THREE.Mesh(coreGeo, centerMat));
+                for(let p=0; p<10; p++) { 
+                    const petal = new THREE.Mesh(petalGeo, petalMat);
+                    petal.rotation.z = (p/10)*Math.PI*2;
+                    petal.rotation.x = -0.25;
+                    flower.add(petal);
+                }
+
+                const x = Math.cos(angle) * r;
+                const z = Math.sin(angle) * r;
+                const y = (Math.random() - 0.5) * 10; 
+
+                flower.position.set(x, y, z);
+                const scale = 1.2 - (r / maxRadius) * 0.4;
+                flower.scale.set(scale, scale, scale);
+                flower.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.5); 
+
+                flower.userData = {
+                    title: `Girasol del Anillo ${ringIndex + 1}`, 
+                    message: loveMessages[i % loveMessages.length],
+                    baseScale: scale, baseY: y, bobSpeed: 0.6 + Math.random()*0.4, bobAmp: 0.4, spinSpeed: (Math.random() - 0.5)*0.02, phase: Math.random() * Math.PI * 2
+                };
+
+                galaxyGroup.add(flower);
+                interactiveNodes.push(flower);
+            }
+        }
+
+        function onPointerDown(e) { pointerDownPos = { x: e.clientX, y: e.clientY }; pointerDownTime = performance.now(); }
+        function onPointerUp(e) {
+            if (!pointerDownPos) return;
+            const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+            const time = performance.now() - pointerDownTime;
+            pointerDownPos = null;
+
+            if (dist > 5 || time > 400 || !controls.enabled) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveNodes, true);
+
+            if (intersects.length > 0) {
+                let node = intersects[0].object;
+                while (node.parent && !node.userData.message) node = node.parent;
+                if (node.userData?.message) focusOnNode(node);
+            }
+        }
+
+        function focusOnNode(node) {
+            isAutoRotating = false;
+            document.getElementById('rotateStateText').textContent = "Reanudar";
+
+            const targetPos = new THREE.Vector3();
+            node.getWorldPosition(targetPos);
+            const newCamPos = targetPos.clone().add(new THREE.Vector3(0, 4, 10)); 
+
+            gsap.to(camera.position, {
+                x: newCamPos.x, y: newCamPos.y, z: newCamPos.z, duration: 1.5, ease: "power3.inOut",
+                onUpdate: () => { controls.target.lerp(targetPos, 0.1); controls.update(); }
+            });
+
+            document.getElementById('cardTitle').textContent = node.userData.title;
+            document.getElementById('cardText').textContent = node.userData.message;
+            messageCard.classList.remove('hidden');
+            setTimeout(() => messageCard.classList.add('active'), 50);
+
+            const b = node.userData.baseScale;
+            gsap.to(node.scale, { x: b*1.6, y: b*1.6, z: b*1.6, duration: 0.4, yoyo: true, repeat: 1 });
+        }
+
+        function closeMessageCard() {
+            messageCard.classList.remove('active');
+            setTimeout(() => messageCard.classList.add('hidden'), 500);
+        }
+
+        function resetCameraView() {
+            closeMessageCard();
+            isAutoRotating = true;
+            document.getElementById('rotateStateText').textContent = "Pausar";
+
+            gsap.to(camera.position, {
+                x: 0, y: 55, z: 90, duration: 2.5, ease: "power3.inOut",
+                onUpdate: () => { controls.target.lerp(new THREE.Vector3(0,0,0), 0.05); controls.update(); }
+            });
+        }
+
+        function toggleAutoRotate() {
+            isAutoRotating = !isAutoRotating;
+            document.getElementById('rotateStateText').textContent = isAutoRotating ? "Pausar" : "Reanudar";
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+
+            if (isAutoRotating && galaxyGroup) galaxyGroup.rotation.y -= 0.001; 
+
+            for (const item of deepSpaceElements) {
+                item.obj.rotation.y += item.rotSpeed; 
+            }
+
+            for (const node of interactiveNodes) {
+                const d = node.userData;
+                node.position.y = d.baseY + Math.sin(t * d.bobSpeed + d.phase) * d.bobAmp;
+                node.rotation.z += d.spinSpeed; 
+            }
+
+            controls.update();
+            composer ? composer.render() : renderer.render(scene, camera);
+        }
+
+        setTimeout(() => {
+            try {
+                init();
+            } catch(e) {
+                console.error("Error al iniciar 3D:", e);
+                const loadingScreen = document.getElementById('loadingScreen');
+                if(loadingScreen) loadingScreen.style.display = 'none';
+            }
+        }, 100);
+    </script>
+</body>
+</html>
